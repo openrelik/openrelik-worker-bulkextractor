@@ -7,9 +7,16 @@ RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selectio
 
 # Install poetry and any other dependency that your worker needs.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    software-properties-common \
     python3-poetry \
-    # Add your dependencies here
     && rm -rf /var/lib/apt/lists/*
+
+
+# Install various packages from the GIFT PPA
+RUN add-apt-repository -y ppa:gift/stable
+RUN apt-get update && apt-get -y install \
+    bulk-extractor \
+    && apt-get clean && rm -rf /var/cache/apt/* /var/lib/apt/lists/*
 
 # Configure poetry
 ENV POETRY_NO_INTERACTION=1 \
@@ -22,6 +29,9 @@ ARG OPENRELIK_PYDEBUG
 ENV OPENRELIK_PYDEBUG ${OPENRELIK_PYDEBUG:-0}
 ARG OPENRELIK_PYDEBUG_PORT
 ENV OPENRELIK_PYDEBUG_PORT ${OPENRELIK_PYDEBUG_PORT:-5678}
+ENV OPENRELIK_PYDEBUG=${OPENRELIK_PYDEBUG:-0}
+ARG OPENRELIK_PYDEBUG_PORT
+ENV OPENRELIK_PYDEBUG_PORT=${OPENRELIK_PYDEBUG_PORT:-5678}
 
 # Set working directory
 WORKDIR /openrelik
@@ -39,3 +49,4 @@ ENV VIRTUAL_ENV=/app/.venv PATH="/openrelik/.venv/bin:$PATH"
 
 # Default command if not run from docker-compose (and command being overidden)
 CMD ["celery", "--app=src.tasks", "worker", "--task-events", "--concurrency=1", "--loglevel=INFO"]
+# CMD ["celery", "--app=src.tasks", "worker", "--task-events", "--concurrency=1", "--loglevel=INFO"]
