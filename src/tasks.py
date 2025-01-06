@@ -16,7 +16,7 @@ import subprocess
 
 from openrelik_worker_common.file_utils import create_output_file
 from openrelik_worker_common.task_utils import create_task_result, get_input_files
-from .text_formatter import heading4,heading5,bullet
+from openrelik_worker_common.reporting import Report, MarkdownTable, serialize_file_report
 from uuid import uuid4
 import os
 import xml.etree.ElementTree as xml_tree
@@ -64,7 +64,6 @@ def generate_summary_report(output_dir):
         report_test(str): The report data
         summary(str): A summary of the report (used for task status)
     """
-    findings = []
     features_count = 0
     report_path = os.path.join(output_dir, 'report.xml')
 
@@ -75,40 +74,38 @@ def generate_summary_report(output_dir):
 
     # Parse existing XML file.
     xml_file = xml_tree.parse(report_path)
+    report = Report("Bulk Extractor Results")
 
     # Place in try/except statement to continue execution when
     # an attribute is not found and NoneType is returned.
     try:
         # Retrieve summary related results.
-        findings.append(heading4('Bulk Extractor Results'))
-        findings.append(heading5('Run Summary'))
-        findings.append(
-            bullet(
+        section = report.add_section()
+        section.add_header("Run Summary")
+        section.add_bullet(
                 'Program: {0} - {1}'.format(
                     check_xml_attrib(xml_file,'creator/program'),
-                    check_xml_attrib(xml_file,'creator/version'))))
-        findings.append(
-            bullet(
+                    check_xml_attrib(xml_file,'creator/version')))
+        section.add_bullet(
                 'Command Line: {0}'.format(
                     check_xml_attrib(
                         xml_file,
-                        'creator/execution_environment/command_line'))))
-        findings.append(
-            bullet(
+                        'creator/execution_environment/command_line')))
+        section.add_bullet(
                 'Start Time: {0}'.format(
                     check_xml_attrib(
                         xml_file,
-                        'creator/execution_environment/start_time'))))
-        findings.append(
-            bullet(
+                        'creator/execution_environment/start_time')))
+        section.add_bullet(
                 f"Elapsed Time: {check_xml_attrib(xml_file, 'report/elapsed_seconds')}"
-            ))
+            )
 
         # Retrieve results from each of the scanner runs and display in table
         feature_files = xml_file.find(".//feature_files")
         scanner_results = []
+        section = report.add_section()
         if feature_files is not None:
-            findings.append(heading5('Scanner Results\n'))
+            section.add_header('Scanner Results\n')
             for name, count in zip(xml_file.findall(".//feature_file/name"),
                                     xml_file.findall(".//feature_file/count")):
                 scanner_results.append({"Name": name.text, "Count": int(count.text)})
@@ -116,20 +113,19 @@ def generate_summary_report(output_dir):
             sorted_scanner_results = sorted(
                 scanner_results, key=lambda x: x["Count"], reverse=True)
             columns = scanner_results[0].keys()
-            findings.append(" | ".join(columns))
-            findings.append(" | ".join(["---"] * len(columns)))
+            t = MarkdownTable(columns)
             for scanner_result in sorted_scanner_results:
-                findings.append(
-                    " | ".join(str(scanner_result[column]) for column in columns))
+                print([str(scanner_result[column]) for column in columns])
+                t.add_row([str(scanner_result[column]) for column in columns])
+            section.add_table(t)
         else:
-            findings.append(heading5("There are no findings to report."))
+            section.add_header("There are no findings to report.")
     except AttributeError as exception:
         #log.warning(
         #    f'Error parsing feature from Bulk Extractor report: {exception!s}')
         raise exception
-    summary = f'{features_count} artifacts have been extracted.'
-    report = '\n'.join(findings)
-    return (report, summary)
+    report.summary = f'{features_count} artifacts have been extracted.'
+    return report
 
 def extract_non_empty_files(artifact_dir, output_path) -> List[Dict]:
     out_dir = os.path.join(artifact_dir, "output")
@@ -168,6 +164,7 @@ def command(
     """
     input_files = get_input_files(pipe_result, input_files or [])
     output_files = []
+    file_reports = []
 
     for input_file in input_files:
         base_command = ["bulk_extractor"]
@@ -188,11 +185,12 @@ def command(
         if process.returncode == 0:
             # Execution complete, verify the results
             if os.path.exists(artifacts_dir):
-                report, _ = generate_summary_report(artifacts_dir)
+                report = generate_summary_report(artifacts_dir)
                 with open(output_file.path, "w") as fh:
-                    fh.write(report)
+                    fh.write(report.to_markdown())
                 output_files.append(output_file.to_dict())
                 output_files.extend(extract_non_empty_files(artifacts_dir, output_path))
+                file_reports.append(serialize_file_report(input_file, output_file, report))
             else:
                 print("os.path.exists({}):{} when expected True".format(artifacts_dir, os.path.exists(artifacts_dir)))
                 raise
@@ -207,5 +205,6 @@ def command(
         workflow_id=workflow_id,
         command=base_command_string,
         meta={},
+        file_reports=file_reports,
     )
 
