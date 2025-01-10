@@ -22,6 +22,7 @@ import os
 import xml.etree.ElementTree as xml_tree
 import glob
 from typing import List, Dict
+import shutil
 
 from .app import celery
 
@@ -121,13 +122,17 @@ def generate_summary_report(output_dir):
         else:
             section.add_header("There are no findings to report.")
     except AttributeError as exception:
-        #log.warning(
-        #    f'Error parsing feature from Bulk Extractor report: {exception!s}')
         raise exception
     report.summary = f'{features_count} artifacts have been extracted.'
     return report
 
 def extract_non_empty_files(artifact_dir, output_path) -> List[Dict]:
+    """Walks a firectory and returns a list of OutputFiles that are not empty
+    
+    Args:
+        artifact_dir(str): The path of the directory to walk
+        output_path(str): The path of the directory to store the results
+    """
     out_dir = os.path.join(artifact_dir, "output")
     os.makedirs(out_dir, exist_ok=True)
     out_files = []
@@ -168,14 +173,12 @@ def command(
 
     for input_file in input_files:
         base_command = ["bulk_extractor"]
-        output_file = create_output_file(
+        report_file = create_output_file(
             output_path,
-            display_name="Report_{}".format(input_file.get("display_name")),
-            extension="html",
-            data_type="html",
+            display_name=f"Report_{input_file.get("display_name")}.html",
         )
-        artifacts_dir = os.path.join(output_path, uuid4().hex)
-        base_command.extend(["-o", artifacts_dir])
+        tmp_artifacts_dir = os.path.join(output_path, uuid4().hex)
+        base_command.extend(["-o", tmp_artifacts_dir])
         base_command_string = " ".join(base_command)
         command = base_command + [input_file.get("path")]
 
@@ -184,18 +187,20 @@ def command(
         process.wait()
         if process.returncode == 0:
             # Execution complete, verify the results
-            if os.path.exists(artifacts_dir):
-                report = generate_summary_report(artifacts_dir)
-                with open(output_file.path, "w") as fh:
+            if os.path.exists(tmp_artifacts_dir):
+                report = generate_summary_report(tmp_artifacts_dir)
+                with open(report_file.path, "w") as fh:
                     fh.write(report.to_markdown())
-                output_files.append(output_file.to_dict())
-                output_files.extend(extract_non_empty_files(artifacts_dir, output_path))
-                file_reports.append(serialize_file_report(input_file, output_file, report))
+                output_files.append(report_file.to_dict())
+                output_files.extend(extract_non_empty_files(tmp_artifacts_dir, output_path))
+                file_reports.append(serialize_file_report(input_file, report_file, report))
             else:
-                print("os.path.exists({}):{} when expected True".format(artifacts_dir, os.path.exists(artifacts_dir)))
+                print("os.path.exists({}):{} when expected True".format(tmp_artifacts_dir, os.path.exists(tmp_artifacts_dir)))
                 raise
         else:
             raise
+        
+        shutil.rmtree(tmp_artifacts_dir)
 
     if not output_files:
         raise RuntimeError("Error running bulk extractor, no files returned.")
