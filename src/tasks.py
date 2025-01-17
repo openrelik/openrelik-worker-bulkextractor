@@ -198,8 +198,8 @@ def command(
                 raise
         else:
             raise
-        
-        shutil.rmtree(tmp_artifacts_dir)
+        if os.path.exists(tmp_artifacts_dir):
+            shutil.rmtree(tmp_artifacts_dir)
 
     if not output_files:
         raise RuntimeError("Error running bulk extractor, no files returned.")
