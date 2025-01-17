@@ -114,11 +114,10 @@ def generate_summary_report(output_dir):
             sorted_scanner_results = sorted(
                 scanner_results, key=lambda x: x["Count"], reverse=True)
             columns = scanner_results[0].keys()
-            t = MarkdownTable(columns)
+            table = MarkdownTable(columns)
             for scanner_result in sorted_scanner_results:
-                print([str(scanner_result[column]) for column in columns])
-                t.add_row([str(scanner_result[column]) for column in columns])
-            section.add_table(t)
+                table.add_row([str(scanner_result[column]) for column in columns])
+            section.add_table(table)
         else:
             section.add_header("There are no findings to report.")
     except AttributeError as exception:
