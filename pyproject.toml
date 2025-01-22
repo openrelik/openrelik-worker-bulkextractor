@@ -1,8 +1,8 @@
 [tool.poetry]
-name = "openrelik-worker-template"
-version = "2024.11.27"
-description = "Description of the worker"
-authors = ["YOUR NAME <email@example.com>"]
+name = "openrelik-worker-bulkextractor"
+version = "2025.01.21"
+description = "Run bulk extractor on a set of files"
+authors = ["axpatito"]
 readme = "README.md"
 package-mode = false
 
@@ -10,6 +10,11 @@ package-mode = false
 python = "^3.10"
 celery = {extras = ["redis"], version = "^5.4.0"}
 openrelik-worker-common = "^2024.11.27"
+debugpy = "^1.8.7"
+
+[tool.poetry.group.test.dependencies]
+pytest = "*"
+pytest-cov = "^5.0.0"
 
 [build-system]
 requires = ["poetry-core"]
