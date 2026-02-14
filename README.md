@@ -1,3 +1,7 @@
+> [!CAUTION]  
+> # NOTICE - DO NOT USE
+> This repository has been archived and moved to https://github.com/openrelik/openrelik-workers/
+
 # OpenRelik Worker for BulkExtractor
 
 This repository contains the OpenRelik worker designed to interact with [BulkExtractor](https://github.com/simsong/bulk_extractor). It processes files using BulkExtractor to identify and extract various types of information.
